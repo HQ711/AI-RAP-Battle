@@ -12,7 +12,73 @@ import re
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # 1. Lyric generation
-lyrics_generator = pipeline("text-generation", model="dzionek/distilgpt2-rap", device=device)
+lyrics_generator = pipeline("text-generation", model="EleutherAI/gpt-neo-1.3B", device=device)
+
+generated_lyrics = {"rap1": "", "rap2": ""}
+
+model_cache = {}
+
+def load_lyrics_model(model_name):
+    if model_name in model_cache:
+        return model_cache[model_name]
+
+    model_cache[model_name] = pipeline("text-generation", model=model_name, device=device)
+    return model_cache[model_name]
+
+def clean_lyrics(text, prompt):
+    text = text.replace(prompt, "").strip()
+    lines = text.split('\n')
+    clean_lines = []
+    for line in lines:
+        line = line.strip()
+        line = re.sub(r'^\d+\.\s*', '', line)
+        if len(line.split()) >= 3:
+            clean_line = re.sub(r'[^a-zA-Z0-9\s\'\,\.\!\?]', '', line)
+            clean_lines.append(clean_line)
+        if len(clean_lines) >= 10:
+            break
+    if not clean_lines:
+        return "\n".join(["I'm unmatched, the greatest you'll see,"] * 10)
+    while len(clean_lines) < 10:
+        clean_lines.append("I'm unmatched, the greatest you'll see,")
+    return "\n".join(clean_lines[:10])
+
+def generate_lyrics(prompt):
+    output = lyrics_generator(
+        prompt,
+        max_length=250,
+        do_sample=True,
+        temperature=0.8,
+        top_p=0.9,
+        repetition_penalty=1.5,
+        pad_token_id=lyrics_generator.tokenizer.eos_token_id,
+    )[0]["generated_text"]
+    return clean_lyrics(output, prompt)
+
+def generate_battle_lyrics(part1, part2, model_name):
+        global lyrics_generator
+        lyrics_generator = load_lyrics_model(model_name)
+
+        part1 = part1.strip() or "cat"
+        part2 = part2.strip() or "dog"
+
+        prompt1 = (
+            f"This is a rap battle. I'm a {part1}, better than a {part2}. "
+            f"Here are exactly 10 rhyming rap lines explaining clearly why I'm superior:\n"
+        )
+
+        prompt2 = (
+            f"This is a rap battle. I'm a {part2}, better than a {part1}. "
+            f"Here are exactly 10 rhyming rap lines explaining clearly why I'm superior:\n"
+        )
+
+        rap1 = generate_lyrics(prompt1)
+        rap2 = generate_lyrics(prompt2)
+
+        generated_lyrics["rap1"] = rap1
+        generated_lyrics["rap2"] = rap2
+
+        return rap1, rap2, None, None
 
 # 2. Music generation
 music_processor = AutoProcessor.from_pretrained("facebook/musicgen-small")
@@ -68,58 +134,65 @@ def generate_rap_song(lyrics):
         print(f"Fail to generate: {e}")
         return None
 
-def clean_lyrics(text, prompt):
-    text = text.replace(prompt, "").strip()
-    lines = text.split('\n')
-    clean_lines = [line.strip() for line in lines if len(line.strip().split()) > 2][:4]
-    return "\n".join(clean_lines)
+def generate_song():
+        rap1 = generated_lyrics["rap1"]
+        rap2 = generated_lyrics["rap2"]
 
-def generate_lyrics(prompt):
-    output = lyrics_generator(
-        prompt,
-        max_length=150,
-        do_sample=True,
-        temperature=1.0,
-        top_p=0.95,
-        repetition_penalty=1.2,
-        pad_token_id=lyrics_generator.tokenizer.eos_token_id,
-    )[0]["generated_text"]
-    return clean_lyrics(output, prompt)
+        if not rap1 or not rap2:
+            return rap1, rap2, "Please generate lyrics first.", "Please generate lyrics first."
 
-def generate_rap_battle(topic):
-    part1, part2 = topic.split(' vs ')
-    prompt1 = f"{part1} is better than {part2} because"
-    prompt2 = f"{part2} is better than {part1} because"
+        song1 = generate_rap_song(rap1) or "Failed to generate"
+        song2 = generate_rap_song(rap2) or "Failed to generate"
 
-    rap1 = generate_lyrics(prompt1)
-    rap2 = generate_lyrics(prompt2)
-
-    song1 = generate_rap_song(rap1) or "Failed to generate"
-    song2 = generate_rap_song(rap2) or "Failed to generate"
-
-    return rap1, rap2, song1, song2
+        return song1, song2
 
 # Gradio UI
 with gr.Blocks(title="AI RAP Battle") as demo:
     gr.Markdown("# AI RAP Battle")
+
     with gr.Row():
-        topic = gr.Textbox(label="Battle Topic", placeholder="e.g., cats vs dogs")
-        btn = gr.Button("Generate", variant="primary")
+        topic1 = gr.Textbox(label="Topic 1", placeholder="default: cat", value="")
+        vs_mark = gr.Markdown("<h2 style='text-align:center;'>VS</h2>")
+        topic2 = gr.Textbox(label="Topic 2", placeholder="default: dog", value="")
     
+    with gr.Row():
+        with gr.Column(scale=1):
+            model_dropdown = gr.Dropdown(
+                ["EleutherAI/gpt-neo-1.3B", "dzionek/distilgpt2-rap", ],
+                value="EleutherAI/gpt-neo-1.3B",
+                label="Choose Lyric Generation Model",
+            )
+        with gr.Column(scale=1):
+            generate_lyrics_btn = gr.Button("Generate Lyrics", variant="primary")
+
+
     with gr.Row():
         with gr.Column():
             gr.Markdown("### Song 1")
             lyrics1 = gr.Textbox(label="Lyrics")
-            song1 = gr.Audio(label="song", type="filepath")
         with gr.Column():
             gr.Markdown("### Song 2")
             lyrics2 = gr.Textbox(label="Lyrics")
+    
+    with gr.Row():
+        generate_song_btn = gr.Button("Generate Song", variant="primary")
+    
+    with gr.Row():
+        with gr.Column():
+            song1 = gr.Audio(label="song", type="filepath")
+        with gr.Column():
             song2 = gr.Audio(label="song", type="filepath")
     
-    btn.click(
-        fn=generate_rap_battle,
-        inputs=topic,
-        outputs=[lyrics1, lyrics2, song1, song2]
+    generate_lyrics_btn.click(
+        fn=generate_battle_lyrics,
+        inputs=[topic1, topic2, model_dropdown],
+        outputs=[lyrics1, lyrics2]
+    )
+
+    generate_song_btn.click(
+        fn=generate_song,
+        inputs=None,
+        outputs=[song1, song2]
     )
 
 # Cleanup function to remove temporary files
