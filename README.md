@@ -67,6 +67,8 @@ pip install gradio transformers torch scipy pydub bark
 ##  Run the App
 python main.py
 
+---
+
 The app will launch a web interface accessible at:
 http://127.0.0.1:7860
 
