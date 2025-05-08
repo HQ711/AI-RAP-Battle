@@ -51,7 +51,7 @@ This project creates interactive **AI Rap Battles**, enabling users to generate 
 ### Step 1: Clone Repository
 
 ```bash
-git clone https://github.com/HQ711/AI-RAP-Battle
+git clone git@github.com:HQ711/AI-RAP-Battle.git
 cd AI-RAP-Battle
 ```
 
@@ -64,7 +64,8 @@ source venv/bin/activate  # Linux/macOS
 
 ### Step 3: Install Dependencies
 ```bash
-pip install gradio transformers torch scipy pydub bark
+pip install gradio transformers torch scipy pydub
+pip install git+https://github.com/suno-ai/bark.git
 ```
 
 ##  Run the App
