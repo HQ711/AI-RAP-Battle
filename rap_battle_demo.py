@@ -11,7 +11,9 @@ import re
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-# 1. Lyric generation
+############################################################################################
+#                               1. Lyric generation
+############################################################################################
 lyrics_generator = pipeline("text-generation", model="EleutherAI/gpt-neo-1.3B", device=device)
 
 generated_lyrics = {"rap1": "", "rap2": ""}
@@ -80,7 +82,9 @@ def generate_battle_lyrics(part1, part2, model_name):
 
         return rap1, rap2, None, None
 
-# 2. Music generation
+############################################################################################
+#                                   2. Music generation
+############################################################################################
 music_processor = AutoProcessor.from_pretrained("facebook/musicgen-small")
 music_model = MusicgenForConditionalGeneration.from_pretrained("facebook/musicgen-small").to(device)
 
@@ -146,7 +150,10 @@ def generate_song():
 
         return song1, song2
 
-# Gradio UI
+
+############################################################################################
+#                                           Gradio UI
+############################################################################################
 with gr.Blocks(title="AI RAP Battle") as demo:
     gr.Markdown("# AI RAP Battle")
 
@@ -158,7 +165,7 @@ with gr.Blocks(title="AI RAP Battle") as demo:
     with gr.Row():
         with gr.Column(scale=1):
             model_dropdown = gr.Dropdown(
-                ["EleutherAI/gpt-neo-1.3B", "dzionek/distilgpt2-rap", ],
+                ["EleutherAI/gpt-neo-1.3B", "dzionek/distilgpt2-rap", "gpt2"],
                 value="EleutherAI/gpt-neo-1.3B",
                 label="Choose Lyric Generation Model",
             )
