@@ -7,11 +7,12 @@ import numpy as np
 from scipy.io import wavfile
 from pydub import AudioSegment
 from gtts import gTTS
+import re
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # 1. Lyric generation
-lyrics_generator = pipeline("text-generation", model="gpt2", device=device)
+lyrics_generator = pipeline("text-generation", model="dzionek/distilgpt2-rap", device=device)
 
 # 2. Music generation
 music_processor = AutoProcessor.from_pretrained("facebook/musicgen-small")
@@ -53,7 +54,7 @@ def generate_rap_song(lyrics):
         
         # 3. mix vocal and melody
         vocal = AudioSegment.from_wav(vocal_path)
-        music = AudioSegment.from_wav(melody_path) - 12  # 背景音乐降音量
+        music = AudioSegment.from_wav(melody_path) - 12  # reduce volume of music
         
         # 4. overlay
         duration = min(len(vocal), len(music))
@@ -64,29 +65,38 @@ def generate_rap_song(lyrics):
         return song_path
     
     except Exception as e:
-        print(f"生成失败: {e}")
+        print(f"Fail to generate: {e}")
         return None
 
+def clean_lyrics(text, prompt):
+    text = text.replace(prompt, "").strip()
+    lines = text.split('\n')
+    clean_lines = [line.strip() for line in lines if len(line.strip().split()) > 2][:4]
+    return "\n".join(clean_lines)
+
+def generate_lyrics(prompt):
+    output = lyrics_generator(
+        prompt,
+        max_length=150,
+        do_sample=True,
+        temperature=1.0,
+        top_p=0.95,
+        repetition_penalty=1.2,
+        pad_token_id=lyrics_generator.tokenizer.eos_token_id,
+    )[0]["generated_text"]
+    return clean_lyrics(output, prompt)
+
 def generate_rap_battle(topic):
-    # generate rap lyrics
-    rap1 = lyrics_generator(
-        f"Write a rap verse about {topic}, make it rhyme:",
-        max_length=50,
-        pad_token_id=lyrics_generator.tokenizer.eos_token_id,
-        truncation=True
-    )[0]["generated_text"]
-    
-    rap2 = lyrics_generator(
-        f"Write a counter rap verse about {topic}, make it rhyme:",
-        max_length=50,
-        pad_token_id=lyrics_generator.tokenizer.eos_token_id,
-        truncation=True
-    )[0]["generated_text"]
-    
-    # generate rap songs
+    part1, part2 = topic.split(' vs ')
+    prompt1 = f"{part1} is better than {part2} because"
+    prompt2 = f"{part2} is better than {part1} because"
+
+    rap1 = generate_lyrics(prompt1)
+    rap2 = generate_lyrics(prompt2)
+
     song1 = generate_rap_song(rap1) or "Failed to generate"
     song2 = generate_rap_song(rap2) or "Failed to generate"
-    
+
     return rap1, rap2, song1, song2
 
 # Gradio UI
