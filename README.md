@@ -53,24 +53,26 @@ This project creates interactive **AI Rap Battles**, enabling users to generate 
 ```bash
 git clone https://github.com/yourusername/your-repo-name.git
 cd your-repo-name
-
+```
 
 ### Step 2: Set Up Python Environment
+```bash
 python -m venv venv
 source venv/bin/activate  # Linux/macOS
 .\venv\Scripts\activate   # Windows
+```
 
 ### Step 3: Install Dependencies
+```bash
 pip install gradio transformers torch scipy pydub bark
-
+```
 
 ##  Run the App
+```bash
 python main.py
+```
 
----
-
-The app will launch a web interface accessible at:
-http://127.0.0.1:7860
+The app will launch a web interface accessible at: http://127.0.0.1:7860
 
 
 ##  Usage
