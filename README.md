@@ -51,8 +51,8 @@ This project creates interactive **AI Rap Battles**, enabling users to generate 
 ### Step 1: Clone Repository
 
 ```bash
-git clone https://github.com/yourusername/your-repo-name.git
-cd your-repo-name
+git clone https://github.com/HQ711/AI-RAP-Battle
+cd AI-RAP-Battle
 ```
 
 ### Step 2: Set Up Python Environment
