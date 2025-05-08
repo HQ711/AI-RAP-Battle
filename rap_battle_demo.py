@@ -6,7 +6,7 @@ import os
 import numpy as np
 from scipy.io import wavfile
 from pydub import AudioSegment
-from gtts import gTTS
+from bark import preload_models, generate_audio
 import re
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -88,67 +88,54 @@ def generate_battle_lyrics(part1, part2, model_name):
 music_processor = AutoProcessor.from_pretrained("facebook/musicgen-small")
 music_model = MusicgenForConditionalGeneration.from_pretrained("facebook/musicgen-small").to(device)
 
-def generate_melody(lyrics, duration=15):
-    """Generate melody using MusicGen"""
+def generate_melody(lyrics, duration=20):
+    short_lyrics = lyrics[:200]
     inputs = music_processor(
-        text=[f"hiphop instrumental with lyrics: {lyrics}"],
+        text=[f"hiphop instrumental with lyrics: {short_lyrics}"],
         padding=True,
         return_tensors="pt",
     ).to(device)
-    
-    audio = music_model.generate(**inputs, max_new_tokens=int(duration*50))
+    audio = music_model.generate(**inputs, max_new_tokens=int(duration * 50))
     melody_path = tempfile.mktemp(suffix=".wav")
-    wavfile.write(melody_path, 32000, audio[0,0].cpu().numpy())
+    wavfile.write(melody_path, 32000, audio[0, 0].cpu().numpy())
     return melody_path
 
-def generate_vocal(lyrics):
-    """generate vocal using gTTS"""
-    vocal_path = tempfile.mktemp(suffix=".mp3")
-    tts = gTTS(text=lyrics, lang='en')
-    tts.save(vocal_path)
-    
-    # Convert mp3 to wav
-    wav_path = tempfile.mktemp(suffix=".wav")
-    AudioSegment.from_mp3(vocal_path).export(wav_path, format="wav")
-    os.remove(vocal_path)
-    return wav_path
+def generate_vocal_with_bark(lyrics):
+    audio_array = generate_audio(lyrics, history_prompt="v2/en_speaker_6")
+    vocal_path = tempfile.mktemp(suffix=".wav")
+    wavfile.write(vocal_path, rate=24000, data=audio_array)
+    return vocal_path
 
 def generate_rap_song(lyrics):
-    """generate rap song"""
+    lyrics = lyrics[:200]
     try:
-        # 1. generate melody
         melody_path = generate_melody(lyrics)
-        
-        # 2. generate vocal
-        vocal_path = generate_vocal(lyrics)
-        
-        # 3. mix vocal and melody
+        vocal_path = generate_vocal_with_bark(lyrics)
+
+        music = AudioSegment.from_wav(melody_path).set_frame_rate(24000) - 12
         vocal = AudioSegment.from_wav(vocal_path)
-        music = AudioSegment.from_wav(melody_path) - 12  # reduce volume of music
-        
-        # 4. overlay
+
         duration = min(len(vocal), len(music))
         mixed = vocal[:duration].overlay(music[:duration])
-        
+
         song_path = tempfile.mktemp(suffix="_song.wav")
         mixed.export(song_path, format="wav")
         return song_path
-    
     except Exception as e:
         print(f"Fail to generate: {e}")
         return None
 
 def generate_song():
-        rap1 = generated_lyrics["rap1"]
-        rap2 = generated_lyrics["rap2"]
+    rap1 = generated_lyrics["rap1"]
+    rap2 = generated_lyrics["rap2"]
 
-        if not rap1 or not rap2:
-            return rap1, rap2, "Please generate lyrics first.", "Please generate lyrics first."
+    if not rap1 or not rap2:
+        return "Please generate lyrics first.", "Please generate lyrics first."
 
-        song1 = generate_rap_song(rap1) or "Failed to generate"
-        song2 = generate_rap_song(rap2) or "Failed to generate"
+    song1 = generate_rap_song(rap1) or "Failed to generate"
+    song2 = generate_rap_song(rap2) or "Failed to generate"
 
-        return song1, song2
+    return song1, song2
 
 
 ############################################################################################
